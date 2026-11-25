@@ -65,7 +65,7 @@ function buildTeamRoster(t) {
     name, num, pos, ovr,
     spd: ovr, sht: ovr - 1, chk: ovr + 1
   }));
-  return [...stars, ...depth];
+  return stars;
 }
 
 export const TM = Object.fromEntries(
@@ -117,3 +117,10 @@ export const state = {
   bracket: null,
   bracketActive: false
 };
+// Picks C / LW / RW / LD / RD / G in order; works for both built-in and live-synced rosters (L, R, D codes)
+export function getLineup(team) {
+  const r = team.roster, used = new Set();
+  const pick = (codes) => { const p = r.find(x => !used.has(x) && codes.includes(x.pos)); if (p) used.add(p); return p; };
+  const out = [pick(['C']), pick(['LW', 'L']), pick(['RW', 'R']), pick(['LD', 'D']), pick(['RD', 'D'])];
+  return out.map((p, i) => p || r.find(x => !used.has(x) && x.pos !== 'G') || r[i]);
+}
