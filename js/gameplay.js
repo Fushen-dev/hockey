@@ -1,8 +1,9 @@
-import { TM, customPro, state, getLineup } from './data.js';
-import { playSfx, speakComm } from './audio.js';
-import { engine, initEngine, addMesh, mat, createSkater, createRef, paintIce, recolorCrowd } from './engine3d.js';
+import { TM, customPro, state, getLineup, BOOKS } from './data.js';
+import { playSfx, speakComm, playRoar, playGoalSong, startAmbience, stopAmbience, setCrowdLevel } from './audio.js';
+import { engine, initEngine, addMesh, mat, createSkater, createRef, paintIce, recolorCrowd, scratchIce, flushIce } from './engine3d.js';
 
 const $ = id => document.getElementById(id);
+const PEN_TYPES = ['TRIPPING', 'HOOKING', 'SLASHING', 'INTERFERENCE', 'HOLDING', 'BOARDING', 'CHARGING', 'HIGH-STICKING', 'ROUGHING'];
 
 export let game = null;
 export const keys = {};
@@ -59,7 +60,8 @@ export function showModal(title, sub, buttons) {
   $('modStats').innerHTML = `
     <tr><td>${game.score[0]}</td><td>Goals</td><td>${game.score[1]}</td></tr>
     <tr><td>${game.sog[0]}</td><td>Shots on Goal</td><td>${game.sog[1]}</td></tr>
-    <tr><td>${game.hits[0]}</td><td>Body Checks</td><td>${game.hits[1]}</td></tr>`;
+    <tr><td>${game.hits[0]}</td><td>Body Checks</td><td>${game.hits[1]}</td></tr>
+    <tr><td>${game.pim[0]}</td><td>Penalty Minutes</td><td>${game.pim[1]}</td></tr>`;
   $('modBtns').innerHTML = '';
   buttons.forEach(([txt, fn]) => {
     const b = document.createElement('button');
@@ -87,6 +89,7 @@ export function togglePause() {
 
 export function stopGame() {
   cancelAnimationFrame(raf);
+  stopAmbience();
   raf = 0;
   game = null;
 }
@@ -121,6 +124,7 @@ export function startGame() {
     score: [0, 0],
     sog: [0, 0],
     hits: [0, 0],
+    pim: [0, 0],
     pp: [0, 0],
     period: 1,
     maxPeriods: isShootout ? 1 : 3,
@@ -174,6 +178,14 @@ export function startGame() {
   const puck = addMesh(engine.scene, new THREE.CylinderGeometry(0.13, 0.13, 0.06, 20), mat('#111317', 0.35), 0, 0.05, 0);
   puck.userData.gameObject = true;
   game.puck = puck;
+  const pk = { normal: 1, large: 1.8, glow: 2.0 }[state.puck] || 1; // accessibility: puck size / highlight
+  puck.scale.set(pk, 1, pk);
+  if (state.puck === 'glow') {
+    const hl = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.3, 20), new THREE.MeshBasicMaterial({ color: '#39ff14', side: THREE.DoubleSide }));
+    hl.rotation.x = -Math.PI / 2; hl.position.y = 0.04; puck.add(hl);
+  }
+  game.ring.scale.setScalar(state.ind); game.passRing.scale.setScalar(state.ind);
+  startAmbience();
 
   if (isShootout) {
     const info = {
@@ -273,7 +285,7 @@ export function startGame() {
     : isPractice
     ? 'Free Skate! Practice slap shots, dekes, and one-timers.'
     : 'Faceoff at center ice — press Space or F on the drop!';
-  if (!isPractice && !isShootout) showBanner('FACEOFF', 'PRESS SPACE OR F TO WIN THE DRAW', 1.05);
+  if (!isPractice && !isShootout) { showBanner('FACEOFF', 'PRESS SPACE OR F TO WIN THE DRAW', 1.05); showLower(); }
 
   last = performance.now();
   raf = requestAnimationFrame(loop);
@@ -319,7 +331,16 @@ function resetFaceoff(fx = 0, fz = 0, label = 'CENTER ICE') {
   game.human =
     game.players.find(p => p.userData.side === 0 && !p.userData.goalie && p.userData.penTimer <= 0) || game.players[0];
   showBanner('FACEOFF', label, 0.9);
+  showLower();
   playSfx('whistle');
+}
+
+function showLower() { // broadcast lower-thirds: forwards on the ice
+  const row = (T, c) => { const l = getLineup(T); return `<div class="lt ${c}"><b>${T.a}</b>${[['LW', 1], ['C', 0], ['RW', 2]].map(([p, i]) => `<span>${p} ${l[i].name.split(' ').pop().toUpperCase()}</span>`).join('')}</div>`; };
+  $('lower').innerHTML = row(TM[state.home], 'h') + row(TM[state.away], 'a');
+  $('lower').classList.add('on');
+  clearTimeout(showLower._t);
+  showLower._t = setTimeout(() => $('lower').classList.remove('on'), 2800);
 }
 
 function diffMult() {
@@ -421,6 +442,7 @@ function throwPunch(attacker, defender) {
     if (state.rules === 'usa' && game.mode === '5v5') {
       f.p1.userData.penTimer = 14;
       f.p2.userData.penTimer = 14;
+      game.pim[0] += 5; game.pim[1] += 5;
       benchHuman();
     }
     game.fightCooldown = 4.0;
@@ -465,16 +487,18 @@ function applyBodyCheck(checker, opp) {
       Math.random() < 0.42
     ) {
       checker.userData.penTimer = 18;
+      game.pim[checker.userData.side] += 2;
       benchHuman();
       game.pp[opp.userData.side] = 18;
       game.refs.forEach(r => (r.userData.callTimer = 1.4));
       playSfx('whistle');
-      showBanner('PENALTY', '2:00 ROUGHING / INTERFERENCE', 1.4);
+      showBanner('PENALTY', `2:00 ${PEN_TYPES[Math.floor(Math.random() * PEN_TYPES.length)]}`, 1.4);
       speakComm(`Whistle blows! ${checker.userData.info.name} is going to the box for two minutes!`, true);
     }
   }
   playSfx('hit');
   spawnParticles(opp.position, '#ffc82e', 10);
+  playRoar(0.8);
 }
 
 export function triggerShoot(power = 1) {
@@ -490,7 +514,9 @@ export function triggerShoot(power = 1) {
     p.userData.pickupCd = 0.35;
     p.userData.shotAnim = 0.35;
     const isOneTimer = game.oneTimerWindow > 0;
-    const spd = (15.5 + power * 11.5) * (isOneTimer ? 1.25 : 1);
+    const back = !!keys.b;
+    const kind = isOneTimer ? 'ONE-TIMER' : back ? 'BACKHAND' : power < 0.28 ? 'SNAPSHOT' : power < 0.62 ? 'WRIST SHOT' : 'SLAP SHOT';
+    const spd = (15.5 + power * 11.5) * (isOneTimer ? 1.25 : 1) * (back ? 0.85 : 1);
     const dirX = 17.45 - p.position.x;
     const aimZ = state.cam === 'chase'
       ? Math.max(-1, Math.min(1, (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0) + joyVec.x))
@@ -505,6 +531,7 @@ export function triggerShoot(power = 1) {
     game.shotOriginX = p.position.x;
     game.icingEligible = p.position.x < 0 && game.pp[1] <= 0;
     playSfx('shot');
+    $('gameStatus').textContent = 'SHOT: ' + kind;
     spawnParticles(game.puck.position, '#58c8ff', isOneTimer ? 10 : 5);
   } else if (p.userData.downTimer <= 0 && p.userData.checkTimer <= 0) {
     const dir = new THREE.Vector3(Math.sin(p.rotation.y), 0, Math.cos(p.rotation.y));
@@ -527,7 +554,7 @@ export function triggerShoot(power = 1) {
   game.charging = false;
 }
 
-export function triggerPassOrPoke() {
+export function triggerPassOrPoke(saucer = false) {
   if (!game || game.over || game.paused) return;
   if (game.fight) {
     throwPunch(game.fight.p1, game.fight.p2);
@@ -556,7 +583,8 @@ export function triggerPassOrPoke() {
     game.carrier = null;
     p.userData.pickupCd = 0.3;
     p.userData.shotAnim = 0.22;
-    game.puckVel.copy(dir.multiplyScalar(15.0));
+    game.puckVel.copy(dir.multiplyScalar(saucer ? 13.0 : 15.0));
+    if (saucer) game.puckVel.y = 4.2; // saucer pass lifts over sticks
     game.passTarget = tgt;
     game.human = tgt;
     game.oneTimerWindow = 0.55;
@@ -624,6 +652,7 @@ function updateAI(dt) {
     const u = p.userData;
     const s = u.side;
     const dir = s === 0 ? 1 : -1;
+    const bk = BOOKS[(s === 0 ? TM[state.home] : TM[state.away]).book];
     if (u.downTimer > 0) continue;
     if (u.aiCd > 0) u.aiCd -= dt;
 
@@ -684,7 +713,7 @@ function updateAI(dt) {
           playSfx('pass');
           continue;
         }
-        if (distToNet < 9.5 && Math.random() < dt * 2.6 * mult) {
+        if (distToNet < 9.5 && Math.random() < dt * 2.6 * mult * bk.shot) {
           game.carrier = null;
           u.pickupCd = 0.4;
           u.shotAnim = 0.35;
@@ -744,7 +773,7 @@ function updateAI(dt) {
     const dist = d.length();
     if (dist > 0.22) {
       d.normalize();
-      const spd = (s === 1 ? 5.6 * mult : 5.5) * (u.info.spd / 86);
+      const spd = (s === 1 ? 5.6 * mult : 5.5) * (u.info.spd / 86) * (p === chaser[s] ? bk.press : 1);
       u.vel.lerp(d.multiplyScalar(spd), Math.min(1, dt * 5.5));
     } else {
       u.vel.multiplyScalar(Math.pow(0.88, dt * 60));
@@ -1055,6 +1084,7 @@ function updateGame(dt) {
     }
 
     p.position.addScaledVector(u.vel, dt);
+    if (!u.goalie && u.vel.lengthSq() > 9) scratchIce(p.position.x - u.vel.x * dt, p.position.z - u.vel.z * dt, p.position.x, p.position.z);
     p.position.x = THREE.MathUtils.clamp(p.position.x, -18.9, 18.9);
     p.position.z = THREE.MathUtils.clamp(p.position.z, -9.2, 9.2);
     if (u.vel.lengthSq() > 0.25 && !u.goalie) {
@@ -1140,6 +1170,8 @@ function updateGame(dt) {
         game.score[scoringSide]++;
         engine.goalLights[scoringSide === 0 ? 1 : 0].material.color.set('#ff1a1a');
         playSfx('horn');
+        playRoar(3);
+        playGoalSong(TM[scoringSide === 0 ? state.home : state.away].a);
         const scorer =
           game.lastTouch && game.lastTouch.userData.side === scoringSide
             ? game.lastTouch.userData.info
@@ -1292,6 +1324,12 @@ function updateCamera(dt) {
     return;
   }
 
+  if (game.fight) { // context cut: close-up on the fight
+    const m = game.fight.p1.position.clone().add(game.fight.p2.position).multiplyScalar(0.5);
+    engine.camera.position.lerp(new THREE.Vector3(m.x, 3.2, m.z + 6.5), Math.min(1, dt * 4));
+    engine.camera.lookAt(m.x, 1.2, m.z);
+    return;
+  }
   let tgt = new THREE.Vector3(px * 0.45, 0, pz * 0.35);
   let desired;
   if (state.cam === 'chase' && game.human) {
@@ -1373,6 +1411,9 @@ function loop(now) {
     updateCamera(dt);
     updateBug();
     updatePlayerHud();
+    game._f = (game._f || 0) + 1;
+    if (game._f % 8 === 0) flushIce();
+    setCrowdLevel(0.03 + game.crowdExcite * 0.12);
 
     if (engine.crowdPoints && engine.crowdBaseY) {
       if (game.crowdExcite > 0) game.crowdExcite = Math.max(0, game.crowdExcite - dt * 0.6);
