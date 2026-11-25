@@ -1,6 +1,6 @@
-import { TM, customPro, state } from './data.js';
+import { TM, customPro, state, getLineup } from './data.js';
 import { playSfx, speakComm } from './audio.js';
-import { engine, initEngine, addMesh, mat, createSkater, createRef } from './engine3d.js';
+import { engine, initEngine, addMesh, mat, createSkater, createRef, paintIce, recolorCrowd } from './engine3d.js';
 
 const $ = id => document.getElementById(id);
 
@@ -72,7 +72,7 @@ export function showModal(title, sub, buttons) {
 }
 
 export function togglePause() {
-  if (!game || game.over) return;
+  if (!game || game.over || game.lock) return;
   game.paused = !game.paused;
   if (game.paused) {
     showModal('GAME PAUSED', 'Adjust camera or resume play.', [
@@ -108,6 +108,8 @@ export function startGame() {
   const isPractice = state.mode === 'practice';
   const homeT = TM[state.home];
   const awayT = TM[state.away];
+  recolorCrowd(homeT.c, awayT.c);
+  paintIce(homeT, awayT);
 
   game = {
     players: [],
@@ -190,7 +192,7 @@ export function startGame() {
     atk.rotation.y = Math.PI / 2;
 
     const goalieInfo = awayT.roster.find(p => p.pos === 'G') || awayT.roster[5];
-    const g = createSkater(awayT, goalieInfo, true);
+    const g = createSkater(awayT, goalieInfo, true, null, true);
     g.userData.side = 1;
     g.position.set(16.85, 0, 0);
     g.rotation.y = -Math.PI / 2;
@@ -211,6 +213,7 @@ export function startGame() {
 
     for (let s = 0; s < (isPractice ? 1 : 2); s++) {
       const team = s === 0 ? homeT : awayT;
+      const lu = getLineup(team);
       for (let i = 0; i < skCount; i++) {
         const isCustom = s === 0 && i === 0;
         const info = isCustom
@@ -223,8 +226,8 @@ export function startGame() {
               sht: customPro.sht,
               chk: customPro.chk
             }
-          : team.roster[i];
-        const p = createSkater(team, info, false, isCustom ? customPro : null);
+          : lu[i];
+        const p = createSkater(team, info, false, isCustom ? customPro : null, s === 1);
         p.userData.side = s;
         p.userData.role = roles[i];
         p.userData.homePos = new THREE.Vector3(s === 0 ? form[i][0] : -form[i][0], 0, form[i][1]);
@@ -233,7 +236,7 @@ export function startGame() {
         game.players.push(p);
       }
       const goalieInfo = team.roster.find(p => p.pos === 'G') || team.roster[5];
-      const g = createSkater(team, goalieInfo, true);
+      const g = createSkater(team, goalieInfo, true, null, s === 1);
       g.userData.side = s;
       g.position.set(s === 0 ? -16.85 : 16.85, 0, 0);
       g.rotation.y = s === 0 ? Math.PI / 2 : -Math.PI / 2;
@@ -242,7 +245,7 @@ export function startGame() {
 
     if (isPractice) {
       const goalieInfo = awayT.roster.find(p => p.pos === 'G') || awayT.roster[5];
-      const g = createSkater(awayT, goalieInfo, true);
+      const g = createSkater(awayT, goalieInfo, true, null, true);
       g.userData.side = 1;
       g.position.set(16.85, 0, 0);
       g.rotation.y = -Math.PI / 2;
@@ -418,6 +421,7 @@ function throwPunch(attacker, defender) {
     if (state.rules === 'usa' && game.mode === '5v5') {
       f.p1.userData.penTimer = 14;
       f.p2.userData.penTimer = 14;
+      benchHuman();
     }
     game.fightCooldown = 4.0;
     showBanner('TAKEDOWN!', `${winner.userData.info.name.toUpperCase()} WINS THE FIGHT · 5:00 FIGHTING MAJOR`, 1.7);
@@ -429,6 +433,13 @@ function throwPunch(attacker, defender) {
       if (game && game.fight === f) game.fight = null;
     }, 1300);
   }
+}
+
+function benchHuman() { // penalized human hands control to nearest skater still on the ice
+  if (!game.human || game.human.userData.penTimer <= 0) return;
+  const m = game.players.filter(q => q.userData.side === 0 && !q.userData.goalie && q.userData.penTimer <= 0)
+    .sort((a, b) => a.position.distanceTo(game.puck.position) - b.position.distanceTo(game.puck.position))[0];
+  if (m) game.human = m;
 }
 
 /* ---------- ACTIONS: SHOOT, CHECK, PASS, POKE, DEKE ---------- */
@@ -454,6 +465,7 @@ function applyBodyCheck(checker, opp) {
       Math.random() < 0.42
     ) {
       checker.userData.penTimer = 18;
+      benchHuman();
       game.pp[opp.userData.side] = 18;
       game.refs.forEach(r => (r.userData.callTimer = 1.4));
       playSfx('whistle');
@@ -480,7 +492,9 @@ export function triggerShoot(power = 1) {
     const isOneTimer = game.oneTimerWindow > 0;
     const spd = (15.5 + power * 11.5) * (isOneTimer ? 1.25 : 1);
     const dirX = 17.45 - p.position.x;
-    const aimZ = (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0);
+    const aimZ = state.cam === 'chase'
+      ? Math.max(-1, Math.min(1, (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0) + joyVec.x))
+      : (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0);
     const targetZ = aimZ !== 0 ? aimZ * 0.72 : (Math.random() - 0.5) * 1.2;
     const vec = new THREE.Vector3(dirX, 0, targetZ - p.position.z).normalize();
 
@@ -529,7 +543,7 @@ export function triggerPassOrPoke() {
   }
 
   if (game.carrier === p) {
-    const mates = game.players.filter(q => q.userData.side === 0 && !q.userData.goalie && q !== p);
+    const mates = game.players.filter(q => q.userData.side === 0 && !q.userData.goalie && q.userData.penTimer <= 0 && q !== p);
     if (!mates.length) return;
     const facing = new THREE.Vector3(Math.sin(p.rotation.y), 0, Math.cos(p.rotation.y));
     mates.sort((a, b) => {
@@ -594,7 +608,7 @@ function updateAI(dt) {
   for (const s of [0, 1]) {
     let bestD = 1e9;
     for (const q of game.players) {
-      if (q.userData.side === s && !q.userData.goalie && q.userData.downTimer <= 0 && q !== game.human) {
+      if (q.userData.side === s && !q.userData.goalie && q.userData.downTimer <= 0 && q.userData.penTimer <= 0 && q !== game.human) {
         const d = q.position.distanceTo(puckPos);
         if (d < bestD) {
           bestD = d;
@@ -624,7 +638,7 @@ function updateAI(dt) {
       continue;
     }
 
-    const mates = game.players.filter(q => q.userData.side === s && !q.userData.goalie && q !== p);
+    const mates = game.players.filter(q => q.userData.side === s && !q.userData.goalie && q.userData.penTimer <= 0 && q !== p);
     const opps = game.players.filter(q => q.userData.side !== s && !q.userData.goalie && q.userData.downTimer <= 0);
     let tgt = new THREE.Vector3();
 
@@ -763,7 +777,7 @@ function updateGame(dt) {
           }
         });
       }
-      game.replayIdx += dt * 22;
+      game.replayIdx += dt * 34;
     } else {
       const winSide = game.lastTouch ? game.lastTouch.userData.side : 0;
       for (const p of game.players) {
@@ -915,6 +929,7 @@ function updateGame(dt) {
       }
       if (game.period < game.maxPeriods) {
         game.paused = true;
+        game.lock = true;
         playSfx('whistle');
         showModal(`END OF PERIOD ${game.period}`, 'Intermission Stats', [
           [
@@ -923,6 +938,7 @@ function updateGame(dt) {
               game.period++;
               game.time = state.periodLen;
               game.paused = false;
+              game.lock = false;
               $('modal').classList.remove('on');
               resetFaceoff();
             }
@@ -931,6 +947,7 @@ function updateGame(dt) {
         return;
       } else if (game.score[0] === game.score[1]) {
         game.paused = true;
+        game.lock = true;
         playSfx('whistle');
         showModal('OVERTIME!', 'Sudden Death — Next Goal Wins', [
           [
@@ -939,6 +956,7 @@ function updateGame(dt) {
               game.period = 'OT';
               game.time = 60;
               game.paused = false;
+              game.lock = false;
               $('modal').classList.remove('on');
               resetFaceoff();
             }
@@ -957,8 +975,7 @@ function updateGame(dt) {
           'Final Box Score',
           state.bracketActive
             ? [
-                ['Back to Bracket', () => onExitToMenu && onExitToMenu('season')],
-                ['Rematch', () => startGame()]
+                ['Back to Bracket', () => onExitToMenu && onExitToMenu('season')]
               ]
             : [
                 ['Rematch', () => startGame()],
@@ -1081,7 +1098,7 @@ function updateGame(dt) {
 
   // Ice Selection Rings
   game.ring.position.set(h.position.x, 0.02, h.position.z);
-  const mates = game.players.filter(q => q.userData.side === 0 && !q.userData.goalie && q !== h);
+  const mates = game.players.filter(q => q.userData.side === 0 && !q.userData.goalie && q.userData.penTimer <= 0 && q !== h);
   if (game.carrier === h && mates.length) {
     const f = new THREE.Vector3(Math.sin(h.rotation.y), 0, Math.cos(h.rotation.y));
     mates.sort(
@@ -1184,6 +1201,7 @@ function updateGame(dt) {
       game.puck.position.distanceTo(game.passTarget.position) < 1.1
     ) {
       game.carrier = game.passTarget;
+      game.lastTouch = game.passTarget;
       game.passTarget = null;
       game.puckVel.set(0, 0, 0);
     } else {
@@ -1192,6 +1210,8 @@ function updateGame(dt) {
         if (p.position.distanceTo(game.puck.position) < 0.85 && game.puckVel.length() < 11.5) {
           game.carrier = p;
           game.lastTouch = p;
+          game.passTarget = null;
+          game.icingEligible = false;
           game.puckVel.set(0, 0, 0);
           if (p.userData.side === 0) game.human = p;
           break;
@@ -1303,7 +1323,7 @@ function updateBug() {
       ? 'OT'
       : ['1ST', '2ND', '3RD'][game.period - 1];
 
-  $('bug').innerHTML = `
+  const bugHtml = `
     <div class="bug-team"><span class="bug-swatch" style="background:${TM[state.home].c}"></span>${state.home}</div>
     <div class="bug-score">${game.score[0]}</div>
     <div class="bug-score">${game.score[1]}</div>
@@ -1313,8 +1333,9 @@ function updateBug() {
     <div class="bug-pp ${game.pp[0] > 0 || game.pp[1] > 0 ? 'on' : ''}">${
     game.pp[0] > 0 ? 'PP ' + Math.ceil(game.pp[0]) + 's' : 'SH ' + Math.ceil(game.pp[1]) + 's'
   }</div>`;
+  if (game._bug !== bugHtml) { game._bug = bugHtml; $('bug').innerHTML = bugHtml; }
 
-  if (engine && engine.jumboCtx) {
+  if (engine && engine.jumboCtx && game._jk !== (game._jk = `${game.score}|${per}|${clk}`)) {
     const c = engine.jumboCtx;
     c.fillStyle = '#08152e';
     c.fillRect(0, 0, 512, 256);
