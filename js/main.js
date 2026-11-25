@@ -62,6 +62,7 @@ function updateHero() {
 }
 
 function enterMenu() {
+  state.bracketActive = false;
   const target = MENU[cur][3];
   if (target === 'shootout') {
     state.mode = 'shootout';
@@ -91,7 +92,7 @@ $('pills').innerHTML = [
   .join('');
 
 $('pills').onclick = e => {
-  if (e.target.dataset.v) go(e.target.dataset.v);
+  if (e.target.dataset.v) { if (e.target.dataset.v === 'game') state.bracketActive = false; go(e.target.dataset.v); }
 };
 
 $('commBtn').onclick = () => {
@@ -204,7 +205,7 @@ export function go(v) {
 function showRoster() {
   const t = TM[$('selR').value];
   const groups = [
-    ['Forwards', t.roster.filter(p => ['C', 'LW', 'RW'].includes(p.pos))],
+    ['Forwards', t.roster.filter(p => ['C', 'LW', 'RW', 'L', 'R'].includes(p.pos))],
     ['Defensemen', t.roster.filter(p => ['LD', 'RD', 'D'].includes(p.pos))],
     ['Goalies', t.roster.filter(p => p.pos === 'G')]
   ];
@@ -334,11 +335,17 @@ function advanceBracketWithUserWin(userWon, scoreStr) {
     br.champ = r[0].winner;
     return;
   }
-  if (userWon) {
-    const next = [];
-    for (let i = 0; i < r.length; i += 2) next.push({ a: r[i].winner, b: r[i + 1].winner, winner: null, score: '' });
+  const step = () => {
+    const q = br.rounds[br.round], next = [];
+    for (let i = 0; i < q.length; i += 2) next.push({ a: q[i].winner, b: q[i + 1].winner, winner: null, score: '' });
     br.round++;
     br.rounds[br.round] = next;
+  };
+  step();
+  while (!userWon && br.round <= 3) { // user eliminated: sim the rest so a champion is crowned
+    br.rounds[br.round].forEach(m => { const x = simMatch(m.a, m.b); m.winner = x.winner; m.score = x.score; });
+    if (br.round === 3) { br.champ = br.rounds[3][0].winner; break; }
+    step();
   }
 }
 
@@ -383,7 +390,7 @@ $('resetBracket').onclick = () => {
 
 $('playBracketGame').onclick = () => {
   if (!state.bracket) initBracket();
-  if (state.bracket.champ) initBracket();
+  if (state.bracket.champ || !state.bracket.rounds[state.bracket.round].some(x => x.a === state.home || x.b === state.home)) initBracket();
   const r = state.bracket.rounds[state.bracket.round];
   const m = r.find(x => x.a === state.home || x.b === state.home);
   if (m) {
@@ -418,6 +425,7 @@ window.addEventListener('keydown', e => {
   keys[k] = true;
   if (!$('v-game').classList.contains('on') || !game) return;
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'tab'].includes(k)) e.preventDefault();
+  if (e.repeat && k !== ' ') return;
 
   if (k === ' ') {
     if (game.faceoff > 0) {
@@ -427,7 +435,7 @@ window.addEventListener('keydown', e => {
       return;
     }
     if (game.carrier === game.human) game.charging = true;
-    else triggerShoot(0);
+    else if (!e.repeat) triggerShoot(0);
   }
   if (k === 'f') triggerPassOrPoke();
   if (k === 'g') startFight();
