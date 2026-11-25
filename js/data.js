@@ -109,7 +109,7 @@ export const state = {
   mode: '5v5',
   diff: 'pro',
   periodLen: 120,
-  cam: 'chase',
+  cam: 'broadcast',
   rules: 'usa',
   muted: false,
   commOn: true,
