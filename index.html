@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>NHL 27 | Pro Hockey Engine</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700;1,800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <div id="bg"></div>
+  <div id="wm">EDM</div>
+  <div class="ice-grid"></div>
+
+  <header>
+    <div class="brand-wrap">
+      <div class="brand d">NHL<b>27</b><span>PRO</span></div>
+    </div>
+    <div class="top-right">
+      <div class="pills" id="pills"></div>
+      <button class="icon-btn" id="commBtn" title="Toggle Live Play-by-Play Commentator">Comm: On</button>
+      <button class="icon-btn" id="touchToggle" title="Toggle On-Screen Controls">Touch</button>
+      <button class="icon-btn" id="muteBtn" title="Toggle Arena Audio">SFX: On</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- MAIN BROADCAST MENU -->
+    <section class="view on" id="v-menu">
+      <div class="menu-col">
+        <div class="menu-kicker">Pro Hockey Simulation Engine · Season 27</div>
+        <div class="list" id="list" role="menu"></div>
+      </div>
+      <div class="hero-card">
+        <span class="hero-tag" id="heroTag">Play Now</span>
+        <h1 class="d" id="ct">Play Now</h1>
+        <p id="cd">Drop into full 5v5 broadcast hockey on an expanded NHL-proportioned rink with real rosters, pro sticks &amp; gear, USA Hockey rules, 2 referees, fighting, and instant goal replays.</p>
+        <div class="hero-stats" id="heroStats">
+          <div class="hstat"><small>Matchup</small><b id="hmMatch">EDM vs FLA</b></div>
+          <div class="hstat"><small>Difficulty</small><b id="hmDiff">Pro</b></div>
+          <div class="hstat"><small>Mode</small><b id="hmMode">5v5 Pro</b></div>
+        </div>
+        <button class="enter" id="enter">Enter Mode</button>
+      </div>
+    </section>
+
+    <!-- GAME SETUP & MATCHUP -->
+    <section class="view" id="v-teams">
+      <h2 class="t d">Game Setup &amp; Matchup</h2>
+      <div class="matchup-grid">
+        <div class="team-box">
+          <div class="team-head">
+            <div>
+              <label for="selH">Home Team</label>
+              <select id="selH"></select>
+            </div>
+            <span id="bH"></span>
+          </div>
+          <div class="ratings" id="ratH"></div>
+        </div>
+        <div class="vs-col">
+          <span class="vs">VS</span>
+          <button class="icon-btn" id="swapTeams">Swap</button>
+        </div>
+        <div class="team-box">
+          <div class="team-head">
+            <div>
+              <label for="selA">Away Team</label>
+              <select id="selA"></select>
+            </div>
+            <span id="bA"></span>
+          </div>
+          <div class="ratings" id="ratA"></div>
+        </div>
+      </div>
+
+      <div class="settings-bar">
+        <div>
+          <label for="selMode">Game Mode</label>
+          <select id="selMode">
+            <option value="5v5">5v5 Pro Match</option>
+            <option value="shootout">Shootout (5 Rounds)</option>
+            <option value="practice">Free Skate Practice</option>
+          </select>
+        </div>
+        <div>
+          <label for="selDiff">AI Difficulty</label>
+          <select id="selDiff">
+            <option value="rookie">Rookie</option>
+            <option value="pro" selected>Pro</option>
+            <option value="allstar">All-Star</option>
+            <option value="superstar">Superstar</option>
+          </select>
+        </div>
+        <div>
+          <label for="selPer">Period Length</label>
+          <select id="selPer">
+            <option value="60">1:00 (Arcade)</option>
+            <option value="120" selected>2:00 (Standard)</option>
+            <option value="180">3:00 (Extended)</option>
+          </select>
+        </div>
+        <div>
+          <label for="selRules">Ruleset</label>
+          <select id="selRules">
+            <option value="usa" selected>USA Hockey / NHL (Offside/Icing/Pen)</option>
+            <option value="arcade">Arcade (No Stoppages)</option>
+          </select>
+        </div>
+        <div>
+          <label for="selCam">Camera Angle</label>
+          <select id="selCam">
+            <option value="chase" selected>Pro Chase Cam</option>
+            <option value="broadcast">Dynamic Broadcast</option>
+            <option value="overhead">Overhead Ice</option>
+            <option value="action">Low Action</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="go d" id="goPlay">Drop The Puck</button>
+    </section>
+
+    <!-- LEAGUE ROSTERS -->
+    <section class="view" id="v-rosters">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+        <div>
+          <h2 class="t d" style="margin-bottom:8px">NHL Rosters &amp; Player Ratings</h2>
+          <div style="min-width:290px">
+            <label for="selR" style="display:block;font:700 .85rem var(--disp);text-transform:uppercase;color:#93b0d6;margin-bottom:4px">Select Franchise</label>
+            <select id="selR"></select>
+          </div>
+        </div>
+        <button class="icon-btn" id="syncLiveBtn">Sync Live NHL API</button>
+      </div>
+      <div id="rosterOut"></div>
+    </section>
+
+    <!-- STANLEY CUP PLAYOFF BRACKET -->
+    <section class="view" id="v-season">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <h2 class="t d" style="margin:0">Championship Playoff Bracket</h2>
+        <div style="display:flex;gap:8px">
+          <button class="enter" id="playBracketGame">Play My Next Game</button>
+          <button class="icon-btn" id="resetBracket">New Bracket</button>
+        </div>
+      </div>
+      <p class="status" id="bracketStatus">Win 4 rounds to hoist the Championship Cup.</p>
+      <div class="bracket-grid" id="bracketOut"></div>
+    </section>
+
+    <!-- BE A PRO PLAYER & GEAR CUSTOMIZER -->
+    <section class="view" id="v-custom">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+        <h2 class="t d" style="margin:0">Be A Pro Skater &amp; Gear Customizer</h2>
+        <button class="go d" id="saveCustomPlay">Save &amp; Hit The Ice</button>
+      </div>
+      <div class="cust-grid">
+        <div class="cust-card">
+          <h3>Identity &amp; Body Shape</h3>
+          <div class="cust-row"><label>Player Name</label><input type="text" id="cName" value="Connor McDavid" maxlength="24"></div>
+          <div class="cust-row"><label>Jersey Number</label><input type="number" id="cNum" value="97" min="1" max="98"></div>
+          <div class="cust-row"><label>Handedness</label><select id="cHand"><option value="L" selected>Left-Handed</option><option value="R">Right-Handed</option></select></div>
+          <div class="cust-row"><label>Height <span id="cHeightVal">6'1"</span></label><input type="range" id="cHeight" min="0.90" max="1.15" step="0.02" value="1.02"></div>
+          <div class="cust-row"><label>Body Build</label><select id="cBuild"><option value="slim">Sniper / Dangler (Slim)</option><option value="athletic" selected>Two-Way Superstar (Athletic)</option><option value="enforcer">Power Forward / Enforcer (Heavy)</option></select></div>
+        </div>
+        <div class="cust-card">
+          <h3>Pro Sticks &amp; Protective Gear</h3>
+          <div class="cust-row"><label>Pro Stick Model</label>
+            <select id="cStick">
+              <option value="bauer_hyperlite2">Bauer Vapor HyperLite 2 (Red/Chrome)</option>
+              <option value="bauer_tracer">Bauer Nexus Tracer (Stealth Carbon)</option>
+              <option value="ccm_trigger8">CCM Ribcor Trigger 8 Pro (Volt/Black)</option>
+              <option value="ccm_ft6">CCM Jetspeed FT6 Pro (Crimson/White)</option>
+              <option value="warrior_lx2">Warrior Alpha LX2 Pro (Gold Edition)</option>
+              <option value="true_hzrdus">True HZRDUS PX (Ice Cyan)</option>
+            </select>
+          </div>
+          <div class="cust-row"><label>Blade Curve &amp; Tape</label>
+            <select id="cTape">
+              <option value="#f8fafc">P92 Sakic/Matthews · Pro White</option>
+              <option value="#111111">P28 McDavid Toe · Classic Black</option>
+              <option value="#39ff14">P88 Kane Mid · Neon Volt</option>
+              <option value="#38bdf8">P90TM · Ice Blue</option>
+            </select>
+          </div>
+          <div class="cust-row"><label>Helmet &amp; Visor</label>
+            <select id="cVisor">
+              <option value="#9edcf4">Bauer Re-Akt 150 · Clear Pro Shield</option>
+              <option value="#2b3a4a">CCM Tacks X · Oakley Smoke Tint</option>
+              <option value="#ffd166">Bauer HyperLite · Gold Mirror Visor</option>
+            </select>
+          </div>
+          <div class="cust-row"><label>Gloves &amp; Skates</label>
+            <select id="cGear">
+              <option value="team">Bauer Vapor HyperLite · Team Colors</option>
+              <option value="black">CCM Jetspeed FT6 · Blackout Pro</option>
+              <option value="white">Warrior Covert QR5 · Classic White</option>
+            </select>
+          </div>
+        </div>
+        <div class="cust-card">
+          <h3>Player Ratings &amp; Attributes</h3>
+          <div class="cust-row"><label>Skating Speed <span id="vSpd">98</span></label><input type="range" id="cSpd" min="75" max="99" value="98"></div>
+          <div class="cust-row"><label>Slap Shot Power <span id="vSht">95</span></label><input type="range" id="cSht" min="75" max="99" value="95"></div>
+          <div class="cust-row"><label>Body Checking &amp; Fighting <span id="vChk">88</span></label><input type="range" id="cChk" min="75" max="99" value="88"></div>
+          <div class="cust-row"><label>Puck Control &amp; Deking <span id="vHnd">99</span></label><input type="range" id="cHnd" min="75" max="99" value="99"></div>
+          <p class="status" style="margin-top:4px">Your custom Be A Pro skater centers the Home team's 1st line in all game modes.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3D ARENA VIEW -->
+    <section class="view" id="v-game">
+      <div id="gameWrap">
+        <div id="bug"></div>
+        <div id="replayBadge">INSTANT REPLAY · 0.65x</div>
+        <div id="commBox"><b>PXP</b><span id="commText">Welcome to tonight's broadcast!</span></div>
+        <div id="playerHud">
+          <div class="ph-name"><b id="phName">#97 MCDAVID</b><span id="phPos">C</span></div>
+          <div class="bar-wrap"><div class="bar-fill" id="staminaFill"></div></div>
+          <div class="bar-wrap shot-bar"><div class="bar-fill" id="shotFill"></div></div>
+        </div>
+        <div id="banner"><div class="goal-card"><h2 id="banTitle">GOAL!</h2><p id="banSub"></p></div></div>
+        <div id="modal">
+          <div class="modal-box">
+            <h3 id="modTitle">PERIOD COMPLETE</h3>
+            <p id="modSub" style="color:#cfe3ff;margin:0 0 10px"></p>
+            <table class="stat-table" id="modStats"></table>
+            <div class="modal-btns" id="modBtns"></div>
+          </div>
+        </div>
+        <div id="touchUI">
+          <div class="joy-zone" id="joyZone"><div class="joy-knob" id="joyKnob"></div></div>
+          <div class="act-pad">
+            <button class="act-btn" id="btnPass">Pass/Poke</button>
+            <button class="act-btn shoot" id="btnShoot">Shoot/Hit</button>
+            <button class="act-btn" id="btnDeke">Deke</button>
+            <button class="act-btn" id="btnFight">Fight</button>
+            <button class="act-btn" id="btnSwitch">Switch</button>
+          </div>
+        </div>
+        <div id="game3d"></div>
+      </div>
+      <div class="controls-bar">
+        <div class="keys">
+          <kbd>WASD</kbd>/<kbd>Arrows</kbd> Skate · <kbd>Shift</kbd> Hustle · <kbd>Space</kbd> (Hold) Slap Shot / Hit · <kbd>F</kbd> Pass / Poke / Punch · <kbd>Q</kbd>/<kbd>E</kbd> Deke · <kbd>G</kbd> Drop Gloves / Fight · <kbd>Tab</kbd> Switch · <kbd>P</kbd> Pause
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="icon-btn" id="btnCamCycle">Cam: Chase</button>
+          <button class="icon-btn" id="btnPause">Pause</button>
+        </div>
+      </div>
+      <p class="status" id="gameStatus">3D rink ready. Win the opening faceoff!</p>
+    </section>
+
+    <!-- LIGHTBOX PROJECT HUB -->
+    <section class="view" id="v-project">
+      <h2 class="t d">The Build: Backlit Lightbox</h2>
+      <p>A photograph engraved into an acrylic panel, held in a 3D printed frame, and illuminated by a custom hand-wired LED circuit.</p>
+      <div class="grid">
+        <div class="panel"><h3>Circuit</h3><p>High-density LEDs, current-limiting resistor, capacitive touch sensor, and battery pack wired for even edge lighting.</p></div>
+        <div class="photo">Photo: breadboard · images/circuit.jpg</div>
+        <div class="panel"><h3>3D Print</h3><p>Custom interlocking frame and weighted base printed in matte black PLA with an internal light-guide channel.</p></div>
+        <div class="photo">Photo: printed frame · images/frame.jpg</div>
+        <div class="panel"><h3>Laser</h3><p>High-contrast hockey photograph raster-engraved into cast acrylic to catch internal LED refraction.</p></div>
+        <div class="photo">Photo: engraved panel · images/engraved.jpg</div>
+      </div>
+      <p class="note">NHL 27 / BACKLIT 27 — Multi-file GitHub-ready WebGL Pro Hockey Engine &amp; Hardware Build Log.</p>
+    </section>
+  </main>
+
+  <div class="hints"><span><b>↑↓</b> Navigate</span><span><b>↵</b> Select</span><span><b>Esc</b> Back</span></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
