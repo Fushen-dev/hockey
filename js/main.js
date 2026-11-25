@@ -127,7 +127,7 @@ const badge = a => {
 
 const ratHtml = a => {
   const t = TM[a];
-  return `<div class="rpill"><small>OVR</small><b>${t.ovr}</b></div><div class="rpill"><small>OFF</small><b>${t.off}</b></div><div class="rpill"><small>DEF</small><b>${t.def}</b></div><div class="rpill"><small>GOL</small><b>${t.gol}</b></div>`;
+  return `<div class="rpill"><small>OVR</small><b>${t.ovr}</b></div><div class="rpill"><small>OFF</small><b>${t.off}</b></div><div class="rpill"><small>DEF</small><b>${t.def}</b></div><div class="rpill"><small>GOL</small><b>${t.gol}</b></div><div class="rpill" style="grid-column:1/-1"><small>PLAYBOOK</small><b style="font-size:1.05rem">${t.book}</b></div>`;
 };
 
 function theme() {
@@ -219,7 +219,7 @@ function showRoster() {
       <div class="pc">
         <div class="pc-top"><span class="pc-num">#${p.num} · ${p.pos}</span><span class="pc-ovr">${p.ovr}</span></div>
         <b>${p.name}</b>
-        <div class="pc-bars"><span>SPD ${p.spd}</span><span>SHT ${p.sht}</span><span>CHK ${p.chk}</span></div>
+        <div class="pc-bars"><span>SPD ${p.spd}</span><span>SHT ${p.sht}</span><span>CHK ${p.chk}</span><span>PAS ${p.pas ?? p.ovr}</span><span>DEK ${p.dek ?? p.ovr}</span><span>AWR ${p.aw ?? p.ovr}</span></div>
       </div>`
       )
       .join('')}
@@ -438,6 +438,7 @@ window.addEventListener('keydown', e => {
     else if (!e.repeat) triggerShoot(0);
   }
   if (k === 'f') triggerPassOrPoke();
+  if (k === 'r') triggerPassOrPoke(true);
   if (k === 'g') startFight();
   if (k === 'q' || k === 'e') triggerDeke();
   if (k === 'tab') switchSkater();
@@ -513,3 +514,5 @@ setGameplayCallbacks({
 });
 
 drawMenu();
+$('selPuck').onchange = e => { state.puck = e.target.value; };
+$('selInd').onchange = e => { state.ind = parseFloat(e.target.value); };
