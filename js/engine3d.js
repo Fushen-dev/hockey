@@ -31,11 +31,13 @@ export function initEngine() {
   engine.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   engine.renderer.shadowMap.enabled = true;
   engine.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  engine.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  engine.renderer.toneMappingExposure = 1.0;
   container.append(engine.renderer.domElement);
 
   // Arena Lighting
-  engine.scene.add(new THREE.HemisphereLight(0xeef7ff, 0x1d2b44, 1.35));
-  const mainLight = new THREE.DirectionalLight(0xffffff, 1.35);
+  engine.scene.add(new THREE.HemisphereLight(0xeef7ff, 0x1d2b44, 0.95));
+  const mainLight = new THREE.DirectionalLight(0xffffff, 1.1);
   mainLight.position.set(-8, 24, 15);
   mainLight.castShadow = true;
   mainLight.shadow.mapSize.set(2048, 2048);
@@ -49,53 +51,30 @@ export function initEngine() {
   rimLight.position.set(10, 18, -15);
   engine.scene.add(rimLight);
 
-  // Expanded NHL Proportioned Ice Sheet (42 x 20.4)
-  const iceMat = new THREE.MeshStandardMaterial({ color: '#dff2fc', roughness: 0.16, metalness: 0.08 });
-  addBox(engine.scene, 42, 0.2, 20.4, iceMat, 0, -0.1, 0, false);
+  // Rink floor: one canvas texture carries every marking (see paintIce)
+  const iceCan = document.createElement('canvas');
+  iceCan.width = 2048; iceCan.height = 1024;
+  engine.iceCtx = iceCan.getContext('2d');
+  engine.iceTex = new THREE.CanvasTexture(iceCan);
+  engine.iceTex.anisotropy = engine.renderer.capabilities.getMaxAnisotropy();
+  const ice = new THREE.Mesh(new THREE.PlaneGeometry(39.6, 19.8), new THREE.MeshStandardMaterial({ map: engine.iceTex, roughness: 0.14, metalness: 0.1 }));
+  ice.rotation.x = -Math.PI / 2; ice.position.y = 0.002; ice.receiveShadow = true;
+  engine.scene.add(ice);
+  addBox(engine.scene, 40.2, 0.2, 20.4, mat('#9fc3d6', 0.5), 0, -0.11, 0, false);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(160, 120), mat('#070d1a', 0.95));
+  floor.rotation.x = -Math.PI / 2; floor.position.y = -0.22; engine.scene.add(floor);
+  paintIce(null, null);
 
-  // Rink Markings
-  const line = (x, z, w, d, c) => addBox(engine.scene, w, 0.012, d, mat(c, 0.4), x, 0.006, z, false);
-  line(0, 0, 0.14, 19.8, '#d52b3b');       // Center Red Line
-  line(-6.8, 0, 0.15, 19.8, '#1d58a8');   // Left Blue Line
-  line(6.8, 0, 0.15, 19.8, '#1d58a8');    // Right Blue Line
-  line(-17.4, 0, 0.08, 19.8, '#d52b3b');  // Left Goal Line
-  line(17.4, 0, 0.08, 19.8, '#d52b3b');   // Right Goal Line
-
-  // Center Ice Circle
-  const cRing = new THREE.Mesh(new THREE.RingGeometry(2.3, 2.42, 48), mat('#1d58a8', 0.4));
-  cRing.rotation.x = -Math.PI / 2;
-  cRing.position.y = 0.012;
-  engine.scene.add(cRing);
-
-  const cDot = new THREE.Mesh(new THREE.CircleGeometry(0.34, 24), mat('#1d58a8', 0.4));
-  cDot.rotation.x = -Math.PI / 2;
-  cDot.position.y = 0.013;
-  engine.scene.add(cDot);
-
-  // 4 End-Zone Faceoff Circles
-  for (const fx of [-13.5, 13.5]) {
-    for (const fz of [-5.2, 5.2]) {
-      const r = new THREE.Mesh(new THREE.RingGeometry(1.85, 1.95, 36), mat('#d52b3b', 0.4));
-      r.rotation.x = -Math.PI / 2;
-      r.position.set(fx, 0.012, fz);
-      engine.scene.add(r);
-
-      const d = new THREE.Mesh(new THREE.CircleGeometry(0.22, 18), mat('#d52b3b', 0.4));
-      d.rotation.x = -Math.PI / 2;
-      d.position.set(fx, 0.013, fz);
-      engine.scene.add(d);
-    }
-  }
-
-  // Goal Creases
-  for (const side of [-1, 1]) {
-    const crease = new THREE.Mesh(
-      new THREE.CircleGeometry(1.35, 28, side < 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI),
-      mat('#72b8eb', 0.3)
-    );
-    crease.rotation.x = -Math.PI / 2;
-    crease.position.set(side * 17.4, 0.012, 0);
-    engine.scene.add(crease);
+  // Dasher-board advertising strips
+  const adCan = document.createElement('canvas'); adCan.width = 2048; adCan.height = 64;
+  const ac = adCan.getContext('2d');
+  ac.fillStyle = '#0b1e44'; ac.fillRect(0, 0, 2048, 64);
+  ac.fillStyle = '#ffffff'; ac.textBaseline = 'middle'; ac.font = 'italic 800 40px Barlow Condensed, Arial Narrow, sans-serif';
+  for (let i = 0; i < 4; i++) ac.fillText('NHL 27  \u00b7  PRO HOCKEY  \u00b7  ', 12 + i * 512, 34);
+  const adMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(adCan) });
+  for (const [w, x, z, ry] of [[39.4, 0, -9.78, 0], [39.4, 0, 9.78, Math.PI], [19.4, -19.68, 0, Math.PI / 2], [19.4, 19.68, 0, -Math.PI / 2]]) {
+    const ad = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.6), adMat);
+    ad.position.set(x, 0.5, z); ad.rotation.y = ry; engine.scene.add(ad);
   }
 
   // Dasher Boards, Kickplate & Plexiglass
@@ -154,50 +133,31 @@ export function initEngine() {
     engine.goalLights.push(gl);
   }
 
-  // Arena Crowd Multi-Tier Bowl & Cheering Spectators
-  const tierMat = mat('#101d34', 0.92);
-  addBox(engine.scene, 48, 2.2, 5.5, tierMat, 0, 0.9, -14.5, false);
-  addBox(engine.scene, 48, 2.2, 5.5, tierMat, 0, 0.9, 14.5, false);
-  addBox(engine.scene, 5.5, 2.2, 32, tierMat, -24.0, 0.9, 0, false);
-  addBox(engine.scene, 5.5, 2.2, 32, tierMat, 24.0, 0.9, 0, false);
-
-  const crowdGeo = new THREE.BufferGeometry();
-  const cPos = [];
-  const cCol = [];
-  const cBaseY = [];
-  const palette = [
-    new THREE.Color('#ff4d4d'),
-    new THREE.Color('#58c8ff'),
-    new THREE.Color('#ffc82e'),
-    new THREE.Color('#ffffff'),
-    new THREE.Color('#6ee7b7')
-  ];
-
-  for (let i = 0; i < 1300; i++) {
-    let x, y, z;
-    if (i < 900) {
-      const side = i % 2 ? 1 : -1;
-      x = (Math.random() - 0.5) * 44;
-      const row = Math.random();
-      y = 1.6 + row * 2.6;
-      z = side * (12.0 + row * 4.4);
-    } else {
-      const side = i % 2 ? 1 : -1;
-      const row = Math.random();
-      x = side * (21.6 + row * 4.0);
-      y = 1.6 + row * 2.6;
-      z = (Math.random() - 0.5) * 26;
+  // Stepped seating bowl with spectators on every row
+  const seatMat = mat('#16264a', 0.9);
+  const cPos = [], cBaseY = [], cRoll = [];
+  const ROWS = 11;
+  const addPeople = (x, y, z) => { if (Math.random() < 0.88) { cPos.push(x, y, z); cBaseY.push(y); cRoll.push(Math.random()); } };
+  for (const sg of [-1, 1]) {
+    for (let r = 0; r < ROWS; r++) {
+      const top = 0.9 + r * 0.62, h = top + 0.3;
+      const zz = sg * (11.0 + r * 0.95), xx = sg * (21.4 + r * 0.95);
+      addBox(engine.scene, 56, h, 0.95, seatMat, 0, top - h / 2, zz, false);
+      addBox(engine.scene, 0.95, h, 22, seatMat, xx, top - h / 2, 0, false);
+      for (let x = -26; x <= 26; x += 0.62) addPeople(x, top + 0.5, zz);
+      for (let z = -10.4; z <= 10.4; z += 0.62) addPeople(xx, top + 0.5, z);
     }
-    cPos.push(x, y, z);
-    cBaseY.push(y);
-    const col = palette[i % palette.length];
-    cCol.push(col.r, col.g, col.b);
+    addBox(engine.scene, 60, 14, 0.5, seatMat, 0, 5, sg * 23.5, false);
+    addBox(engine.scene, 0.5, 14, 50, seatMat, sg * 33, 5, 0, false);
   }
+  const crowdGeo = new THREE.BufferGeometry();
   crowdGeo.setAttribute('position', new THREE.Float32BufferAttribute(cPos, 3));
-  crowdGeo.setAttribute('color', new THREE.Float32BufferAttribute(cCol, 3));
+  crowdGeo.setAttribute('color', new THREE.Float32BufferAttribute(new Array(cPos.length).fill(1), 3));
   engine.crowdBaseY = cBaseY;
-  engine.crowdPoints = new THREE.Points(crowdGeo, new THREE.PointsMaterial({ size: 0.32, vertexColors: true }));
+  engine.crowdRoll = cRoll;
+  engine.crowdPoints = new THREE.Points(crowdGeo, new THREE.PointsMaterial({ size: 0.5, vertexColors: true }));
   engine.scene.add(engine.crowdPoints);
+  recolorCrowd('#FF4C00', '#C8102E');
 
   // Center-Ice Overhead Jumbotron
   const jumbo = new THREE.Group();
@@ -241,12 +201,12 @@ export function resizeEngine() {
   engine.renderer.setSize(w, h, false);
 }
 
-export function createSkater(team, info, goalie = false, custom = null) {
+export function createSkater(team, info, goalie = false, custom = null, away = false) {
   const root = new THREE.Group();
   engine.scene.add(root);
 
-  const jersey = mat(team.c, 0.55);
-  const trim = mat(team.d, 0.5);
+  const jersey = mat(away ? '#f2f5f8' : team.c, 0.55);
+  const trim = mat(away ? team.c : team.d, 0.5);
   const dark = mat('#121822', 0.6);
   const pants = mat('#172233', 0.7);
   const white = mat('#edf2f7', 0.4);
@@ -279,6 +239,17 @@ export function createSkater(team, info, goalie = false, custom = null) {
   }
 
   addMesh(root, new THREE.SphereGeometry(goalie ? 0.35 : 0.3, 16, 12), jersey, 0, 1.2, 0).scale.set(0.95, 1.15, 0.65);
+  {
+    const jc = away ? '#f2f5f8' : team.c;
+    const L = (parseInt(jc.slice(1, 3), 16) * 0.299 + parseInt(jc.slice(3, 5), 16) * 0.587 + parseInt(jc.slice(5, 7), 16) * 0.114) / 255;
+    const nc = document.createElement('canvas'); nc.width = nc.height = 128;
+    const x = nc.getContext('2d'); x.textAlign = 'center'; x.fillStyle = L > 0.6 ? '#10151f' : '#ffffff';
+    x.font = '800 26px Arial Narrow, Arial, sans-serif';
+    x.fillText(String(info.name || '').trim().split(/\s+/).pop().toUpperCase().slice(0, 11), 64, 26);
+    x.font = '800 84px Arial Narrow, Arial, sans-serif'; x.fillText(String(info.num), 64, 108);
+    const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.36), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(nc), transparent: true }));
+    tag.position.set(0, 1.26, -0.21); tag.rotation.y = Math.PI; root.add(tag);
+  }
   addBox(root, goalie ? 0.64 : 0.54, 0.15, 0.42, trim, 0, 1.42, 0);
   addMesh(root, new THREE.CylinderGeometry(0.085, 0.085, 0.12, 10), skin, 0, 1.58, 0);
   addMesh(root, new THREE.SphereGeometry(0.19, 14, 10), skin, 0, 1.76, 0).scale.set(0.9, 1.05, 0.9);
@@ -290,6 +261,7 @@ export function createSkater(team, info, goalie = false, custom = null) {
     arm.position.set(s * (goalie ? 0.38 : 0.33), 1.38, 0);
     root.add(arm);
     addMesh(arm, new THREE.CylinderGeometry(0.085, 0.11, 0.4, 10), jersey, 0, -0.16, 0);
+    addMesh(arm, new THREE.CylinderGeometry(0.093, 0.099, 0.06, 10), trim, 0, -0.22, 0);
     addMesh(arm, new THREE.SphereGeometry(goalie && s < 0 ? 0.16 : 0.12, 10, 8), gloveMat, 0, -0.38, 0.05);
     arms.push(arm);
   }
@@ -365,4 +337,47 @@ export function createRef(idx) {
 
   root.userData = { legs, arms, idx, vel: new THREE.Vector3(), callTimer: 0, gameObject: true };
   return root;
+}
+export function recolorCrowd(hc, ac) {
+  if (!engine || !engine.crowdPoints) return;
+  const col = engine.crowdPoints.geometry.attributes.color;
+  const h = new THREE.Color(hc), a = new THREE.Color(ac);
+  const n = ['#ffffff', '#9fb4d0', '#2a3a5c', '#ffc82e'].map(c => new THREE.Color(c));
+  engine.crowdRoll.forEach((r, i) => {
+    const c = r < 0.48 ? h : r < 0.68 ? a : n[i % 4];
+    col.setXYZ(i, c.r, c.g, c.b);
+  });
+  col.needsUpdate = true;
+}
+
+// Paints rink markings and the home logo onto the ice texture (1 unit = 51.7px)
+export function paintIce(home) {
+  if (!engine || !engine.iceCtx) return;
+  const c = engine.iceCtx, S = 2048 / 39.6, X = x => (x + 19.8) * S, Z = z => (z + 9.9) * S;
+  c.fillStyle = '#e8f4fa'; c.fillRect(0, 0, 2048, 1024);
+  c.globalAlpha = 0.16;
+  for (let i = 0; i < 700; i++) {
+    c.strokeStyle = i % 2 ? '#ffffff' : '#a9cfe2'; c.lineWidth = 1 + Math.random();
+    const x = Math.random() * 2048, y = Math.random() * 1024;
+    c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + 80 * Math.random(), y + 40 * (Math.random() - 0.5), x + 200 * Math.random(), y + 60 * (Math.random() - 0.5)); c.stroke();
+  }
+  c.globalAlpha = 1;
+  const red = '#c8202f', blue = '#1b4fa0';
+  const band = (x, w, col) => { c.fillStyle = col; c.fillRect(X(x) - (w * S) / 2, 0, w * S, 1024); };
+  const ring = (x, z, r, col, w) => { c.strokeStyle = col; c.lineWidth = w * S; c.beginPath(); c.arc(X(x), Z(z), r * S, 0, Math.PI * 2); c.stroke(); };
+  const dot = (x, z, r, col) => { c.fillStyle = col; c.beginPath(); c.arc(X(x), Z(z), r * S, 0, Math.PI * 2); c.fill(); };
+  for (const sd of [-1, 1]) {
+    c.fillStyle = '#8cc4ea'; c.beginPath();
+    c.arc(X(sd * 17.4), Z(0), 1.35 * S, sd < 0 ? -Math.PI / 2 : Math.PI / 2, sd < 0 ? Math.PI / 2 : Math.PI * 1.5);
+    c.closePath(); c.fill();
+  }
+  band(0, 0.3, red); band(-6.8, 0.6, blue); band(6.8, 0.6, blue); band(-17.4, 0.1, red); band(17.4, 0.1, red);
+  c.fillStyle = '#ffffff';
+  for (let z = -9.6; z < 9.6; z += 0.6) c.fillRect(X(0) - 0.03 * S, Z(z), 0.06 * S, 0.3 * S);
+  ring(0, 0, 2.3, blue, 0.1); dot(0, 0, 0.34, blue);
+  c.textAlign = 'center'; c.font = 'italic 800 140px Barlow Condensed, Impact, sans-serif';
+  c.globalAlpha = 0.85; c.fillStyle = home ? home.c : blue; c.fillText(home ? home.a : 'NHL', X(0), Z(0) + 48); c.globalAlpha = 1;
+  for (const fx of [-13.5, 13.5]) for (const fz of [-5.2, 5.2]) { ring(fx, fz, 1.9, red, 0.1); dot(fx, fz, 0.22, red); }
+  for (const fx of [-5.5, 5.5]) for (const fz of [-4.5, 4.5]) dot(fx, fz, 0.22, red);
+  engine.iceTex.needsUpdate = true;
 }
