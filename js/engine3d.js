@@ -381,3 +381,13 @@ export function paintIce(home) {
   for (const fx of [-5.5, 5.5]) for (const fz of [-4.5, 4.5]) dot(fx, fz, 0.22, red);
   engine.iceTex.needsUpdate = true;
 }
+
+// Dynamic ice wear: skate trails scratch the ice texture during play
+export function scratchIce(x0, z0, x1, z1) {
+  if (!engine || !engine.iceCtx) return;
+  const c = engine.iceCtx, S = 2048 / 39.6;
+  c.strokeStyle = 'rgba(150,185,205,0.35)'; c.lineWidth = 1.4;
+  c.beginPath(); c.moveTo((x0 + 19.8) * S, (z0 + 9.9) * S); c.lineTo((x1 + 19.8) * S, (z1 + 9.9) * S); c.stroke();
+  engine.iceDirty = true;
+}
+export function flushIce() { if (engine && engine.iceDirty) { engine.iceTex.needsUpdate = true; engine.iceDirty = false; } }
