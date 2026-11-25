@@ -51,7 +51,11 @@ function buildTeamRoster(t) {
     ovr,
     spd: Math.min(99, ovr + (pos === 'G' ? -4 : 2)),
     sht: Math.min(99, ovr + (pos === 'G' ? -8 : 1)),
-    chk: Math.min(99, ovr + (pos.includes('D') ? 3 : -2))
+    chk: Math.min(99, ovr + (pos.includes('D') ? 3 : -2)),
+    pas: Math.min(99, ovr + (pos === 'C' ? 2 : -1)),
+    dek: Math.min(99, ovr + (pos.includes('W') ? 1 : -2)),
+    agi: Math.min(99, ovr + 1),
+    aw: Math.min(99, ovr - (pos === 'G' ? 2 : 0))
   }));
   // Depth lines for full roster view
   const depth = [
@@ -68,6 +72,17 @@ function buildTeamRoster(t) {
   return stars;
 }
 
+// Team playbooks (derived from each club's offense/defense/goalie ratings)
+export const BOOKS = {
+  'Run & Gun': { shot: 1.3, press: 1.05 },
+  'Defensive Trap': { shot: 0.85, press: 0.95 },
+  'Aggressive Forecheck': { shot: 1.05, press: 1.12 },
+  'Cycle & Grind': { shot: 1.0, press: 1.0 }
+};
+function bookFor(t) {
+  return t[6] - t[7] >= 3 ? 'Run & Gun' : t[7] - t[6] >= 2 ? 'Defensive Trap' : t[6] >= 90 ? 'Aggressive Forecheck' : 'Cycle & Grind';
+}
+
 export const TM = Object.fromEntries(
   NHL_TEAMS.map(t => [
     t[0],
@@ -82,7 +97,8 @@ export const TM = Object.fromEntries(
       off: t[6],
       def: t[7],
       gol: t[8],
-      roster: buildTeamRoster(t)
+      roster: buildTeamRoster(t),
+      book: bookFor(t)
     }
   ])
 );
@@ -115,7 +131,9 @@ export const state = {
   commOn: true,
   touchForce: false,
   bracket: null,
-  bracketActive: false
+  bracketActive: false,
+  puck: 'normal',
+  ind: 1
 };
 // Picks C / LW / RW / LD / RD / G in order; works for both built-in and live-synced rosters (L, R, D codes)
 export function getLineup(team) {
