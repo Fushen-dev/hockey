@@ -1054,6 +1054,10 @@ select {
 @media (pointer: coarse) {
   #touchUI { display: block; }
 }
+#lower{position:absolute;left:0;right:0;bottom:74px;z-index:5;display:none;justify-content:space-between;pointer-events:none;padding:0 12px}
+#lower.on{display:flex}
+.lt{background:rgba(6,15,34,.92);border:1px solid rgba(255,255,255,.25);font:italic 800 .95rem var(--disp);display:flex;flex-direction:column;padding:6px 12px;gap:2px;text-transform:uppercase}
+.lt b{color:var(--accent)}
 </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -1156,6 +1160,14 @@ select {
             <option value="usa" selected>USA Hockey / NHL (Offside/Icing/Pen)</option>
             <option value="arcade">Arcade (No Stoppages)</option>
           </select>
+        </div>
+        <div>
+          <label for="selPuck">Puck Visibility</label>
+          <select id="selPuck"><option value="normal">Normal</option><option value="large">Large Puck</option><option value="glow">Large + Highlight</option></select>
+        </div>
+        <div>
+          <label for="selInd">Player Indicator</label>
+          <select id="selInd"><option value="1">Normal</option><option value="1.6">Large</option></select>
         </div>
         <div>
           <label for="selCam">Camera Angle</label>
@@ -1265,6 +1277,7 @@ select {
       <div id="gameWrap">
         <div id="bug"></div>
         <div id="replayBadge">INSTANT REPLAY · 0.65x</div>
+        <div id="lower"></div>
         <div id="commBox"><b>PXP</b><span id="commText">Welcome to tonight's broadcast!</span></div>
         <div id="playerHud">
           <div class="ph-name"><b id="phName">#97 MCDAVID</b><span id="phPos">C</span></div>
@@ -1294,7 +1307,7 @@ select {
       </div>
       <div class="controls-bar">
         <div class="keys">
-          <kbd>WASD</kbd>/<kbd>Arrows</kbd> Skate · <kbd>Shift</kbd> Hustle · <kbd>Space</kbd> (Hold) Slap Shot / Hit · <kbd>F</kbd> Pass / Poke / Punch · <kbd>Q</kbd>/<kbd>E</kbd> Deke · <kbd>G</kbd> Drop Gloves / Fight · <kbd>Tab</kbd> Switch · <kbd>P</kbd> Pause
+          <kbd>WASD</kbd>/<kbd>Arrows</kbd> Skate · <kbd>Shift</kbd> Hustle · <kbd>Space</kbd> (Hold) Slap Shot / Hit · <kbd>F</kbd> Pass / Poke / Punch · <kbd>Q</kbd>/<kbd>E</kbd> Deke · <kbd>B</kbd> (Hold) Backhand · <kbd>R</kbd> Saucer Pass · <kbd>G</kbd> Drop Gloves / Fight · <kbd>Tab</kbd> Switch · <kbd>P</kbd> Pause
         </div>
         <div style="display:flex;gap:6px">
           <button class="icon-btn" id="btnCamCycle">Cam: Broadcast</button>
