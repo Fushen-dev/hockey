@@ -103,3 +103,44 @@ export function speakComm(text, priority = false) {
     // Ignore speech synthesis autoplay restrictions
   }
 }
+/* ---------- Arena atmosphere: crowd bed, roars, team goal songs ---------- */
+let amb = null;
+function noiseBuf(sec) {
+  const b = actx.createBuffer(1, Math.floor(actx.sampleRate * sec), actx.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  return b;
+}
+export function startAmbience() {
+  ensureAudio();
+  if (!actx || amb) return;
+  const s = actx.createBufferSource(); s.buffer = noiseBuf(2); s.loop = true;
+  const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 700; f.Q.value = 0.4;
+  const g = actx.createGain(); g.gain.value = 0.03;
+  s.connect(f); f.connect(g); g.connect(actx.destination); s.start();
+  amb = { s, g };
+}
+export function stopAmbience() { if (amb) { try { amb.s.stop(); } catch (e) {} amb = null; } }
+export function setCrowdLevel(v) { if (amb && actx) amb.g.gain.setTargetAtTime(state.muted ? 0 : v, actx.currentTime, 0.2); }
+export function playRoar(sec = 2) {
+  if (state.muted) return;
+  ensureAudio();
+  if (!actx) return;
+  const s = actx.createBufferSource(); s.buffer = noiseBuf(sec);
+  const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900;
+  const g = actx.createGain(), n = actx.currentTime;
+  g.gain.setValueAtTime(0.001, n); g.gain.exponentialRampToValueAtTime(0.25, n + 0.25); g.gain.exponentialRampToValueAtTime(0.001, n + sec);
+  s.connect(f); f.connect(g); g.connect(actx.destination); s.start(n);
+}
+export function playGoalSong(abbr) { // each club gets its own short riff
+  if (state.muted) return;
+  ensureAudio();
+  if (!actx) return;
+  let h = 7; for (const ch of abbr) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  const sc = [0, 2, 4, 7, 9, 12], t0 = actx.currentTime + 0.5;
+  for (let i = 0; i < 8; i++) {
+    const o = actx.createOscillator(), g = actx.createGain(), t = t0 + i * 0.22;
+    o.type = 'square'; o.frequency.value = 261.6 * Math.pow(2, sc[((h >> (i * 2)) & 7) % 6] / 12);
+    g.gain.setValueAtTime(0.07, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 0.21);
+  }
+}
